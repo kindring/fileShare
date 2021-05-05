@@ -50,8 +50,9 @@ module.exports = {
                         loader: 'postcss-loader',
                         options: {
                             postcssOptions: {
-                                'tailwindcss': require('tailwindcss'),
+                                'autoprefixer': require('postcss-import'),
                                 'autoprefixer': require('autoprefixer'),
+                                'tailwindcss': require('tailwindcss'),
                             }
                         }
                     }
