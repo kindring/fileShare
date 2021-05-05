@@ -1,6 +1,6 @@
 <template>
   <div id="container" class="flex bg-gray-500 h-full w-full">
-      
+      <div class="header w-full"></div>
   </div>
 </template>
 
