@@ -56,8 +56,10 @@ export default {
             lock: false,
             /** 任务列表 
              * Array.state 状态 0 等待 1 前端处理中 2上传中 3上传成功
+             * Array.isPaused 是否暂停 0 否 1是
             */
             fileUpdateTaskList: [],
+            taskRunningNumber: 0,
             // 最大同时上传文件数量
             'max-file-upload-number': 2,
             // 单个文件最大同时切片上传文件数量
@@ -72,27 +74,58 @@ export default {
 
             const files = e.target.files;
             console.log(e.target.files);
-
+            for(let i in files){
+                this.createTask(files[i]);
+            }
+            this.taskRunning();
             // 拿到当前用户选择的文件列表
             // 添加文件到任务列表中
+            // 开始执行任务
+            // 计算hash值
             // 按照顺序将文件切片
             // 按照顺序依次发送文件
         },
         /** 创建任务 */
         async createTask(file){
             //查看当前文件是否已经在任务队列中,
-            if(this.isExistFile(file)){
+            if(this.isFileExist(file)){
                 return '文件已经存在'
             }
             this.data.fileUpdateTaskList.push({
                 file,
                 state: 0,
+                isPaused: 0,
+                progress:0
             });
+        },
+        isFileExist(){
+            let flag = false;
+            for (const key in this.fileUpdateTaskList) {
+                if (this.fileUpdateTaskList[key] == file) {
+                    return true;
+                }
+            }
+            return flag;
+        },
+        /** 执行任务 */
+        taskRunning(){
+            // 看当前有多少个
+            if(this.taskRunningNumber){
+
+            }
+            // 自动提取文件进行计算hash值
+            for(let i = 0;i<this.fileUpdateTaskList.length;i++){
+                if(this.fileUpdateTaskList.isPaused){
+                    continue;
+                }else[
+                    
+                ]
+            }
         },
         /** 计算文件md5值 */
         calculateFileMd5(file){
             // 创建新线程来生成文件hash
-            const {}
+            // const {}
         },
         /** 处理单个文件 */
         async handelUpload(){
