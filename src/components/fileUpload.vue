@@ -66,9 +66,39 @@ export default {
             'sign-file-chunk-upload' : 3,
             // 最大计算hash值队列
             'max-hash-calculate-number' : 3,
+            uploadChunkUrl: 'http://loaclhost:8001/api/uploaderchunk',
+            verifyUploadUrl: 'http://localhost:8001/api/verify',
+            // 线程列表
+            workers: {
+
+            },
+            
         }
     },
     methods:{
+        request({
+                    url,
+                    method = "post",
+                    data,
+                    headers = {},
+                    onProgress = e => e,
+                    requestList
+            }) {
+                return new Promise(resolve => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.onprogress = onProgress;
+                        xhr.open(method, url);
+                        Object.keys(headers).forEach(key =>
+                            xhr.setRequestHeader(key, headers[key])
+                        );
+                        xhr.send(data);
+                        xhr.onload = e => {
+                            resolve({
+                                data: e.target.response
+                            });
+                        };
+                });
+            },
         // input文件修改绑定的事件
         handelFileChange(e){
 
@@ -110,26 +140,60 @@ export default {
         /** 执行任务 */
         taskRunning(){
             // 看当前有多少个
-            if(this.taskRunningNumber){
-
+            if(this.taskRunningNumber >= this['max-file-upload-number']){
+                return console.log('task number is max')
             }
             // 自动提取文件进行计算hash值
             for(let i = 0;i<this.fileUpdateTaskList.length;i++){
-                if(this.fileUpdateTaskList.isPaused){
+                if(this.fileUpdateTaskList[i].isPaused){
                     continue;
-                }else[
-                    
-                ]
+                }else{
+                    if(this.taskRunningNumber >= this['max-file-upload-number']){
+                        return console.log('任务队列已满')
+                    }else{
+                        //文件切片,切片后进行计算hash值
+                        this.fileUpdateTaskList[i].fileChunkList = this.createFileChunk(this.fileUpdateTaskList[i].file);
+                        //计算hash值
+                        this.calculateFileMd5(this.fileUpdateTaskList[i].fileChunkList,i).then((hash)=>{
+                            // 更新文件状态
+                            this.fileUpdateTaskList[i].hash = hash;
+                            this.fileUpdateTaskList[i].state = 2
+                            this.handelUpload(i);
+                        })
+                        this.fileUpdateTaskList[i].state =  1;
+                        this.taskRunningNumber ++;
+                    }
+                }
             }
         },
         /** 计算文件md5值 */
-        calculateFileMd5(file){
-            // 创建新线程来生成文件hash
-            // const {}
+        calculateFileMd5(fileobj,i){
+            return new Promise(resolve=>{
+                this.workers[i] = new Worker("/hash.js");
+                this.workers[i].postMessage({fileobj});
+                this.workers[i].onmessage = (e)=>{
+                    const {precentage,hash} = e.data;
+                    fileobj.hashPercentage = precentage;
+                    if(hash){
+                        this.workers[i] == null;
+                        resolve(hash);
+                    }
+                };
+            });
         },
         /** 处理单个文件 */
-        async handelUpload(){
-
+        async handelUpload(i){
+            if (!this.fileUpdateTaskList[i].file) return;
+            const fileChunkList = this.fileUpdateTaskList[i].fileChunkList;
+            const fileName = this.fileUpdateTaskList[i].file.name;
+            const hash = this.fileUpdateTaskList[i].hash;
+            const { shouldUpload,existChunks } = await this.verifyUpload(fileName,hash);
+            // 服务端切片文件名称
+            if(!shouldUpload){
+                console.log('秒传：上传成功');
+                return;
+            }
+            await this.uploadChunks(fileChunkList,fileName,hash,existChunks,i);
         },
         /** 创建文件切片 */
         createFileChunk(file,size = SIZE){
@@ -143,13 +207,44 @@ export default {
             }
             return fileChunkList;
         },
-        async uploadChunks(){
-
+        /** 需要上传的分块 */
+        async uploadChunks(fileChunkList,fileName,hash,existChunks,fileUpdateTaskListIndex){
+            const requestList = fileChunkList.filter((chunk,i)=>{
+                const chunkHash = `${hash}-${i}`
+                if(existChunks.includes(chunkHash)){
+                    //跳过
+                    return false;
+                }else{
+                    const formData = new FormData();
+                    formData.append("chunk",chunk);
+                    formData.append('name',fileName);
+                    formData.append('hash',chunkHash);
+                    return formData;
+                }
+            }).map(async ({formData,index})=>{
+                this.request({
+                    url: this.uploadChunkUrl,
+                    data: formData,
+                    onProgress: this.createProgressHandel(fileUpdateTaskListIndex),
+                    // requestList: this.requestList
+                })
+            })
+            await Promise.all(requestList);
         },
-        /** 发送请求 */
-        request(){
-
-        },
+        async verifyUpload(fileName,hash){
+            const {data} = await this.request({
+                url:this.verifyUploadUrl,
+                headers: {
+               "content-type": "application/json"
+             },
+             data: JSON.stringify({
+               filename,
+               fileHash
+             })
+            });
+            console.log(data);
+            return JSON.parse(data);
+        }
     }
 }
 </script>
