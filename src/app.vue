@@ -19,7 +19,7 @@ export default {
     name:'fileShareApp',
     data(){
         return {
-            
+            title:'233'
             
         }
     }

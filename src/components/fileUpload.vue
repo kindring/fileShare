@@ -66,8 +66,9 @@ export default {
             'sign-file-chunk-upload' : 3,
             // 最大计算hash值队列
             'max-hash-calculate-number' : 3,
-            uploadChunkUrl: 'http://loaclhost:8001/api/uploaderchunk',
+            uploadChunkUrl: 'http://localhost:8001/api/uploadchunk',
             verifyUploadUrl: 'http://localhost:8001/api/verify',
+            mergeRequestUrl: 'http://localhost:8001/api/merge',
             // 线程列表
             workers: {
 
@@ -84,6 +85,7 @@ export default {
                     onProgress = e => e,
                     requestList
             }) {
+                console.log(data);
                 return new Promise(resolve => {
                     const xhr = new XMLHttpRequest();
                     xhr.upload.onprogress = onProgress;
@@ -101,13 +103,14 @@ export default {
             },
         // input文件修改绑定的事件
         handelFileChange(e){
-
             const files = e.target.files;
             console.log(e.target.files);
-            for(let i in files){
+            for(let i = 0; i< files.length;i++){
                 this.createTask(files[i]);
             }
-            this.taskRunning();
+            this.$nextTick(()=>{
+                this.taskRunning();
+            })
             // 拿到当前用户选择的文件列表
             // 添加文件到任务列表中
             // 开始执行任务
@@ -121,14 +124,14 @@ export default {
             if(this.isFileExist(file)){
                 return '文件已经存在'
             }
-            this.data.fileUpdateTaskList.push({
+            this.fileUpdateTaskList.push({
                 file,
                 state: 0,
                 isPaused: 0,
                 progress:0
             });
         },
-        isFileExist(){
+        isFileExist(file){
             let flag = false;
             for (const key in this.fileUpdateTaskList) {
                 if (this.fileUpdateTaskList[key] == file) {
@@ -143,34 +146,50 @@ export default {
             if(this.taskRunningNumber >= this['max-file-upload-number']){
                 return console.log('task number is max')
             }
+            console.log(this.fileUpdateTaskList);
             // 自动提取文件进行计算hash值
             for(let i = 0;i<this.fileUpdateTaskList.length;i++){
                 if(this.fileUpdateTaskList[i].isPaused){
                     continue;
                 }else{
+                    console.log(this.taskRunningNumber)
+                    console.log(this['max-file-upload-number'])
+
                     if(this.taskRunningNumber >= this['max-file-upload-number']){
                         return console.log('任务队列已满')
                     }else{
-                        //文件切片,切片后进行计算hash值
-                        this.fileUpdateTaskList[i].fileChunkList = this.createFileChunk(this.fileUpdateTaskList[i].file);
-                        //计算hash值
-                        this.calculateFileMd5(this.fileUpdateTaskList[i].fileChunkList,i).then((hash)=>{
-                            // 更新文件状态
-                            this.fileUpdateTaskList[i].hash = hash;
-                            this.fileUpdateTaskList[i].state = 2
-                            this.handelUpload(i);
-                        })
-                        this.fileUpdateTaskList[i].state =  1;
-                        this.taskRunningNumber ++;
+                        // 防止对着一个文件使劲操作,所以增加一个文件状态判断
+                        if(this.fileUpdateTaskList[i].state != 0){
+                            console.log('此文件跳过');
+                            console.log(i);
+                            console.log(this.fileUpdateTaskList);
+                        }else{
+                            console.log(`执行任务${i}`);
+                            //文件切片,切片后进行计算hash值
+                            this.fileUpdateTaskList[i].fileChunkList = this.createFileChunk(this.fileUpdateTaskList[i].file);
+                            //计算hash值
+                            this.calculateFileMd5(this.fileUpdateTaskList[i].fileChunkList,i).then((hash)=>{
+                                // 更新文件状态
+                                this.fileUpdateTaskList[i].hash = hash;
+                                this.fileUpdateTaskList[i].state = 2
+                                this.handelUpload(i);
+                            })
+                            this.fileUpdateTaskList[i].state =  1;
+                            this.taskRunningNumber ++;
+                        }
+                        
                     }
                 }
             }
         },
         /** 计算文件md5值 */
         calculateFileMd5(fileobj,i){
+            console.log(fileobj)
+            console.log(i)
+            console.log('计算md5')
             return new Promise(resolve=>{
-                this.workers[i] = new Worker("/hash.js");
-                this.workers[i].postMessage({fileobj});
+                this.workers[i] = new Worker("/public/hash.js");
+                this.workers[i].postMessage({ fileChunkList:fileobj });
                 this.workers[i].onmessage = (e)=>{
                     const {precentage,hash} = e.data;
                     fileobj.hashPercentage = precentage;
@@ -187,12 +206,16 @@ export default {
             const fileChunkList = this.fileUpdateTaskList[i].fileChunkList;
             const fileName = this.fileUpdateTaskList[i].file.name;
             const hash = this.fileUpdateTaskList[i].hash;
-            const { shouldUpload,existChunks } = await this.verifyUpload(fileName,hash);
+            const { shouldUpload,existChunks } = await this.verifyUpload(fileName,hash,fileChunkList.length);
             // 服务端切片文件名称
             if(!shouldUpload){
                 console.log('秒传：上传成功');
                 return;
             }
+            console.log(fileChunkList);
+            console.log('fileChunkList');
+            
+
             await this.uploadChunks(fileChunkList,fileName,hash,existChunks,i);
         },
         /** 创建文件切片 */
@@ -209,41 +232,75 @@ export default {
         },
         /** 需要上传的分块 */
         async uploadChunks(fileChunkList,fileName,hash,existChunks,fileUpdateTaskListIndex){
-            const requestList = fileChunkList.filter((chunk,i)=>{
+            
+            const requestList = fileChunkList.map((chunk,i)=>{
                 const chunkHash = `${hash}-${i}`
+                const formData = new FormData();
+                formData.append("chunk",chunk.file);
+                formData.append('name',fileName);
+                formData.append('filename',fileName);
+                formData.append('hash',hash);
+                formData.append('chunkHash',chunkHash);
+                formData.append('index',i);
+                return formData;
+            }).filter(({chunkHash,index})=>{
                 if(existChunks.includes(chunkHash)){
                     //跳过
                     return false;
                 }else{
-                    const formData = new FormData();
-                    formData.append("chunk",chunk);
-                    formData.append('name',fileName);
-                    formData.append('hash',chunkHash);
-                    return formData;
+                    return true;
                 }
-            }).map(async ({formData,index})=>{
-                this.request({
+            });
+            console.log(requestList);
+            requestList.map(async (formData,index)=>{
+                console.log(formData);
+                console.log(formData.get('chunk'));
+
+                console.log('formData');
+                await this.request({
                     url: this.uploadChunkUrl,
                     data: formData,
                     onProgress: this.createProgressHandel(fileUpdateTaskListIndex),
                     // requestList: this.requestList
                 })
-            })
+            });
+            // 全部分块文件上传完成,合并文件
             await Promise.all(requestList);
+            await this.mergeRequest(hash,fileName);
+            console.log('上传完成');
         },
-        async verifyUpload(fileName,hash){
+        async mergeRequest(hash,fileName){
+            this.request(
+                {
+                    url: this.mergeRequestUrl,
+                    headers: {
+                        'content-type':'application/json'
+                    },
+                    data: JSON.stringify({
+                        size: SIZE,
+                        hash: hash,
+                        filename: fileName
+                    })
+                }
+            )
+        },
+        async verifyUpload(fileName,hash,chunkTotal){
             const {data} = await this.request({
                 url:this.verifyUploadUrl,
                 headers: {
                "content-type": "application/json"
              },
              data: JSON.stringify({
-               filename,
-               fileHash
+               filename:fileName,
+               chunkTotal,
+               hash
              })
             });
             console.log(data);
             return JSON.parse(data);
+        },
+        createProgressHandel(fileUpdateTaskListIndex){
+            console.log(fileUpdateTaskListIndex);
         }
     }
 }

@@ -6,7 +6,6 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const devMode = process.argv.indexOf('--mode=production') === -1;
 const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
 const Webpack = require('webpack');
-
 let indexLess = new ExtractTextWebpackPlugin('index.less');
 
 module.exports = {
