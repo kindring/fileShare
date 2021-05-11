@@ -122,13 +122,14 @@ export default {
         async createTask(file){
             //查看当前文件是否已经在任务队列中,
             if(this.isFileExist(file)){
-                return '文件已经存在'
+                return console.log('文件已经在任务列表中')
             }
             this.fileUpdateTaskList.push({
                 file,
                 state: 0,
                 isPaused: 0,
-                progress:0
+                progress:0,
+                chunkList:[]
             });
         },
         isFileExist(file){
@@ -234,8 +235,16 @@ export default {
         async uploadChunks(fileChunkList,fileName,hash,existChunks,fileUpdateTaskListIndex){
             
             let requestList = fileChunkList.map((chunk,i)=>{
+                // 创建form data 同时也可以创建相应的任务队列
                 const chunkHash = `${hash}-${i}`
                 const formData = new FormData();
+                this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList.push({
+                    index:i,
+                    chunkHash,
+                    state: 0,// 状态 0 默认状态 1准备发送 2 发送中 3 发送完成 
+                    failNumber: 0,//失败次数
+                    progress: 0,//进度条
+                });
                 formData.append("chunk",chunk.file);
                 formData.append('name',fileName);
                 formData.append('filename',fileName);
@@ -245,16 +254,17 @@ export default {
                 return formData;
             }).filter((formData,index)=>{
                 const chunkHash = `${hash}-${index}`
-                if(existChunks.includes(chunkHash)){    
-                    console.log('------------存在');
-                    return false;
+                let state,flag;
+                if(existChunks.includes(chunkHash)){   
+                    state = 3;
+                    flag= false;
                 }else{
-                    console.log('++++++++不存在');
-
-                    return true;
+                    state = 1;
+                    flag= true;
                 }
+                this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[index].state = 3
+                return flag;
             });
-            console.log(requestList);
             requestList = requestList.map(async (formData,index)=>{
                 // console.log('formData');
                 await this.request({
@@ -264,7 +274,9 @@ export default {
                     // requestList: this.requestList
                 }).then(data=>{
                     console.log(data);
-                })
+                    //判断当前分块是否成功
+                });
+                //自动重试
             });
             // 全部分块文件上传完成,合并文件
             let r = await Promise.all(requestList);
