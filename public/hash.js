@@ -8,7 +8,7 @@ self.onmessage = e => {
     let count = 0;
     const loadNext = index => {
         const reader = new FileReader();
-        console.log(fileChunkList);
+        // console.log(fileChunkList);
         reader.readAsArrayBuffer(fileChunkList[index].file);
         reader.onload = e => {
             count++;

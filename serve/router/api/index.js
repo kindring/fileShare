@@ -15,7 +15,7 @@ const extractExt = filename =>
 /** 检测是否需要上传 */
 router.post('/uploadchunk', async(req, res) => {
     console.log('上传切片文件');
-    const multipart = new multiparty.Form();
+    const multipart = new multiparty.Form({ uploadDir: TEMP_DIR });
 
     multipart.parse(req, async(err, fields, files) => {
         // console.log(err, fields, files);
@@ -31,21 +31,26 @@ router.post('/uploadchunk', async(req, res) => {
         console.log(chunk.path);
         // let buffer = Buffer.concat(chunk);
         console.log(chunk);
-
         try {
             console.log(chunkPath)
-            await fse.move(chunk.path, chunkPath);
-            console.log('文件上传完成');
+            await fse.moveSync(chunk.path, chunkPath);
+            res.json({
+                code: 1,
+                message: 'ok',
+                name: chunkHash
+            });
         } catch (error) {
             console.error(error)
             console.log('上传失败')
-
+            res.json({
+                code: 2,
+                message: error.message,
+                name: chunkHash
+            });
+            res.end();
         }
     });
 });
-router.get('/a', (req, res) => {
-    res.send('api')
-})
 
 // 检测文件
 router.post('/verify', async(req, res) => {
@@ -75,6 +80,7 @@ router.post('/verify', async(req, res) => {
                     // 查看文件夹下边有什么文件
                     dirList = fs.readdirSync(dirPath);
                     console.log(dirList);
+                    existChunks = dirList;
                 }
 
             } else {
@@ -94,9 +100,50 @@ router.post('/verify', async(req, res) => {
     }
     res.json({ shouldUpload, existChunks });
 })
+
+const pipeStream = (path, writeStream) =>
+    new Promise(resolve => {
+        const readStream = fse.createReadStream(path);
+        readStream.on("end", () => {
+            fse.unlinkSync(path);
+            resolve();
+        });
+        readStream.pipe(writeStream);
+    });
+
 router.post('/merge', async(req, res) => {
-    const query = req.body;
-    console.log(query);
+    const { hash, size, filename } = req.body;
+    console.log('合并文件');
+    console.log(hash);
+    // 读取列表中的文件;
+    const chunkDir = path.resolve(UPLOAD_DIR, `${hash}`);
+    const finalFileName = `${hash}-${filename}`;
+    const filePath = path.resolve(chunkDir, finalFileName)
+    let chunkList = await fs.readdirSync(chunkDir);
+    chunkList.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
+    chunkList = chunkList.filter(chunkPath => {
+            if (chunkPath != finalFileName) {
+                return true
+            }
+        })
+        // 延迟一秒进行文件读取操作
+        // await sleep(1);
+    await Promise.all(
+        chunkList.map((chunkPath, index) => {
+            pipeStream(
+                path.resolve(chunkDir, chunkPath),
+                fse.createWriteStream(filePath, {
+                    start: index * size,
+                    end: (index + 1) * size
+                })
+            )
+        })
+    )
+    console.log('合并文件完成');
+    res.json({
+        code: 1,
+        message: 'ok'
+    })
 })
 
 

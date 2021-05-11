@@ -233,7 +233,7 @@ export default {
         /** 需要上传的分块 */
         async uploadChunks(fileChunkList,fileName,hash,existChunks,fileUpdateTaskListIndex){
             
-            const requestList = fileChunkList.map((chunk,i)=>{
+            let requestList = fileChunkList.map((chunk,i)=>{
                 const chunkHash = `${hash}-${i}`
                 const formData = new FormData();
                 formData.append("chunk",chunk.file);
@@ -243,34 +243,36 @@ export default {
                 formData.append('chunkHash',chunkHash);
                 formData.append('index',i);
                 return formData;
-            }).filter(({chunkHash,index})=>{
-                if(existChunks.includes(chunkHash)){
-                    //跳过
+            }).filter((formData,index)=>{
+                const chunkHash = `${hash}-${index}`
+                if(existChunks.includes(chunkHash)){    
+                    console.log('------------存在');
                     return false;
                 }else{
+                    console.log('++++++++不存在');
+
                     return true;
                 }
             });
             console.log(requestList);
-            requestList.map(async (formData,index)=>{
-                console.log(formData);
-                console.log(formData.get('chunk'));
-
-                console.log('formData');
+            requestList = requestList.map(async (formData,index)=>{
+                // console.log('formData');
                 await this.request({
                     url: this.uploadChunkUrl,
                     data: formData,
                     onProgress: this.createProgressHandel(fileUpdateTaskListIndex),
                     // requestList: this.requestList
+                }).then(data=>{
+                    console.log(data);
                 })
             });
             // 全部分块文件上传完成,合并文件
-            await Promise.all(requestList);
+            let r = await Promise.all(requestList);
             await this.mergeRequest(hash,fileName);
             console.log('上传完成');
         },
         async mergeRequest(hash,fileName){
-            this.request(
+            await this.request(
                 {
                     url: this.mergeRequestUrl,
                     headers: {
