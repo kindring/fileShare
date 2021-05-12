@@ -23,16 +23,15 @@ router.post('/uploadchunk', async(req, res) => {
             console.error(err.message);
             return res.end(err.message);
         }
-        // console.log(fields);
-        // console.log(files);
+        console.log(fields);
         const chunk = files.chunk[0];
-        const { name, hash, chunkHash, index } = fields;
+        const [chunkHash] = fields.chunkHash;
+        const [hash] = fields.hash;
+        const [name] = fields.filename;
+        const [index] = fields.index;
         const chunkPath = path.join(UPLOAD_DIR, `/${hash}/${chunkHash}`);
-        console.log(chunk.path);
-        // let buffer = Buffer.concat(chunk);
-        console.log(chunk);
         try {
-            console.log(chunkPath)
+            // console.log(chunkPath)
             await fse.moveSync(chunk.path, chunkPath);
             res.json({
                 code: 1,
@@ -57,7 +56,8 @@ router.post('/verify', async(req, res) => {
     const { hash, filename, chunkTotal } = req.body;
     // 查看是否有对应的文件夹
     const dirPath = path.resolve(UPLOAD_DIR, `${hash}`);
-    const filePath = path.resolve(dirPath, `${hash}-${filename}`)
+    const ext = extractExt(filename);
+    const filePath = path.resolve(dirPath, `${hash}${ext}`)
     let shouldUpload = true,
         existChunks = [];
     let dirIsExist = await fs.existsSync(dirPath);
@@ -117,7 +117,8 @@ router.post('/merge', async(req, res) => {
     console.log(hash);
     // 读取列表中的文件;
     const chunkDir = path.resolve(UPLOAD_DIR, `${hash}`);
-    const finalFileName = `${hash}-${filename}`;
+    const ext = extractExt(filename);
+    const finalFileName = `${hash}${ext}`;
     const filePath = path.resolve(chunkDir, finalFileName)
     let chunkList = await fs.readdirSync(chunkDir);
     chunkList.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
@@ -129,8 +130,8 @@ router.post('/merge', async(req, res) => {
         // 延迟一秒进行文件读取操作
         // await sleep(1);
     await Promise.all(
-        chunkList.map((chunkPath, index) => {
-            pipeStream(
+        chunkList.map(async(chunkPath, index) => {
+            await pipeStream(
                 path.resolve(chunkDir, chunkPath),
                 fse.createWriteStream(filePath, {
                     start: index * size,

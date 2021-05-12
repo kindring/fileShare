@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full flex justify-center">
+    <div class="w-full flex justify-center flex-col">
         <div class="mx-auto relative w-1/3">
             <div class="
              mask w-full  
@@ -44,6 +44,44 @@
             >
             </form>
         </div>
+        <div
+        v-show="fileUpdateTaskList.length"
+         class="mx-auto relative w-1/3 border-gray-300 border mt-5 rounded-md">
+            <h1 class="title relative
+            text-xl 
+            text-blue-400 text-center py-5 border-b border-gray-400">
+                文件列表
+            </h1>
+            <div class="lists ">
+                <div 
+                v-for="(item,i) in fileUpdateTaskList"
+                :key="item.hash+'-'+i"
+                class="
+                listItem
+                flex
+                items-center
+                
+                " >
+                    <div class="absolute progressBar-position">
+                        <div class=" bg-yellow-400 hash"
+                         :style="{
+                            width:item.hashPercentage+'%'
+                            }"
+                        >
+                        </div>
+                        <div 
+                        class=" bg-red-400 total"
+                        :style="{
+                            width:item.progress+'%'
+                            }"
+                        ></div>
+                    </div>
+                    <span>
+                        {{item.file.name}}
+                    </span>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -85,20 +123,21 @@ export default {
                     onProgress = e => e,
                     requestList
             }) {
-                console.log(data);
                 return new Promise(resolve => {
                     const xhr = new XMLHttpRequest();
+                    xhr.onprogress = onProgress;
                     xhr.upload.onprogress = onProgress;
-                        xhr.open(method, url);
-                        Object.keys(headers).forEach(key =>
-                            xhr.setRequestHeader(key, headers[key])
-                        );
-                        xhr.send(data);
-                        xhr.onload = e => {
-                            resolve({
-                                data: e.target.response
-                            });
-                        };
+                    xhr.open(method, url);
+                    Object.keys(headers).forEach(key =>
+                        xhr.setRequestHeader(key, headers[key])
+                    );
+                    xhr.send(data);
+                    xhr.onload = e => {
+
+                        resolve({
+                            data: e.target.response
+                        });
+                    };
                 });
             },
         // input文件修改绑定的事件
@@ -129,6 +168,9 @@ export default {
                 state: 0,
                 isPaused: 0,
                 progress:0,
+                hashPercentage: 0,
+                totalSize: 0,
+                uploadSize: 0,
                 chunkList:[]
             });
         },
@@ -168,6 +210,7 @@ export default {
                             console.log(`执行任务${i}`);
                             //文件切片,切片后进行计算hash值
                             this.fileUpdateTaskList[i].fileChunkList = this.createFileChunk(this.fileUpdateTaskList[i].file);
+                            this.fileUpdateTaskList[i].totalSize = this.fileUpdateTaskList[i].file.size;
                             //计算hash值
                             this.calculateFileMd5(this.fileUpdateTaskList[i].fileChunkList,i).then((hash)=>{
                                 // 更新文件状态
@@ -193,7 +236,9 @@ export default {
                 this.workers[i].postMessage({ fileChunkList:fileobj });
                 this.workers[i].onmessage = (e)=>{
                     const {precentage,hash} = e.data;
-                    fileobj.hashPercentage = precentage;
+                    // fileobj.hashPercentage = precentage;
+                    this.fileUpdateTaskList[i].hashPercentage = precentage
+                    console.log(precentage);
                     if(hash){
                         this.workers[i] == null;
                         resolve(hash);
@@ -213,8 +258,8 @@ export default {
                 console.log('秒传：上传成功');
                 return;
             }
-            console.log(fileChunkList);
-            console.log('fileChunkList');
+            // console.log(fileChunkList);
+            // console.log('fileChunkList');
             
 
             await this.uploadChunks(fileChunkList,fileName,hash,existChunks,i);
@@ -242,6 +287,7 @@ export default {
                     index:i,
                     chunkHash,
                     state: 0,// 状态 0 默认状态 1准备发送 2 发送中 3 发送完成 
+                    loaded: 0,//已经上传的数据量
                     failNumber: 0,//失败次数
                     progress: 0,//进度条
                 });
@@ -254,26 +300,41 @@ export default {
                 return formData;
             }).filter((formData,index)=>{
                 const chunkHash = `${hash}-${index}`
-                let state,flag;
+                let state,flag,progress,loadedSize;
                 if(existChunks.includes(chunkHash)){   
                     state = 3;
                     flag= false;
+                    progress = 100;
+                    loadedSize = fileChunkList[index].file.size;
+                    // 本次上传的长度
+                    this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize += loadedSize;
+                    this.fileUpdateTaskList[fileUpdateTaskListIndex].progress = (Math.min(this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize,this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize) / this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize)*100;
                 }else{
+                    progress = 0;
+                    loadedSize = 0;
                     state = 1;
                     flag= true;
                 }
-                this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[index].state = 3
+                this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[index].state = state
+                this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[index].progress = progress
+
                 return flag;
             });
             requestList = requestList.map(async (formData,index)=>{
-                // console.log('formData');
                 await this.request({
                     url: this.uploadChunkUrl,
                     data: formData,
-                    onProgress: this.createProgressHandel(fileUpdateTaskListIndex),
+                    onProgress: this.createProgressHandel(fileUpdateTaskListIndex,index),
                     // requestList: this.requestList
                 }).then(data=>{
-                    console.log(data);
+                    data= JSON.parse(data.data);
+                    let state;
+                    if(data.code == 1){
+                        state = 3;
+                    }else{
+                        state = 2;
+                    }
+                    this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[index].state
                     //判断当前分块是否成功
                 });
                 //自动重试
@@ -313,13 +374,61 @@ export default {
             console.log(data);
             return JSON.parse(data);
         },
-        createProgressHandel(fileUpdateTaskListIndex){
-            console.log(fileUpdateTaskListIndex);
+        createProgressHandel(fileUpdateTaskListIndex,chunkIndex){
+            let prevProgress = 0;
+            let prevLoaded = 0;
+            return (e)=>{
+                // 更新分片文件
+               let nowProgress = parseInt(String((e.loaded / e.total) * 100));
+               this.fileUpdateTaskList[fileUpdateTaskListIndex].chunkList[chunkIndex].progress = nowProgress;
+               
+               // 本次上传长度.  =  总共上传了多少 总长度 20  9 18 19  9 - 0 18-9 19-9   9 9 1
+               let nowUploadSize = prevProgress==nowProgress?e.loaded:e.loaded - prevLoaded;
+               prevProgress = nowProgress;
+               console.log(`
+               -----------\n\n
+               当前对应的chunkIndex: ${chunkIndex}\n
+               当前块的上传进度: ${nowProgress}\n
+               本次上传了: ${nowUploadSize}\n 
+               上一次的数据长度: ${prevLoaded}\n 
+               总上传进度: ${ e.loaded }\n\n
+               -----------`)
+               prevLoaded = e.loaded;
+            
+               // 本次上传的长度
+               this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize += nowUploadSize;
+               this.fileUpdateTaskList[fileUpdateTaskListIndex].progress = (Math.min(this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize,this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize) / this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize)*100;
+            }
         }
     }
 }
 </script>
 
 <style>
-
+.lists{
+    width: 100%;
+    height: auto;
+    max-height: calc(50px * 5);
+}
+.listItem{
+    height: 50px;
+    width: 100%;
+    padding: 0 5px;
+    box-sizing: border-box;
+    position: relative;
+}
+.progressBar-position{
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+.hash{
+    height:5px;
+    font-size: 5px;
+}
+.total{
+    height:45px;
+}
 </style>
