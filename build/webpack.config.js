@@ -84,7 +84,13 @@ module.exports = {
             ...fileLoadModule(['media', 'img', 'fonts'])
         ]
     },
-
+    devServer: {
+        // 内容路径
+        // gzip压缩
+        compress: true,
+        host: "0.0.0.0",
+        // 端口
+    },
     resolve: {
         alias: {
             'vue$': 'vue/dist/vue.runtime.esm.js',

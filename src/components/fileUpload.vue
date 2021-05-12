@@ -1,6 +1,6 @@
 <template>
     <div class="w-full flex justify-center flex-col">
-        <div class="mx-auto relative w-1/3">
+        <div class="mx-auto relative sm:w-4/5 lg:w-1/3">
             <div class="
              mask w-full  
              h-full 
@@ -46,7 +46,7 @@
         </div>
         <div
         v-show="fileUpdateTaskList.length"
-         class="mx-auto relative w-1/3 border-gray-300 border mt-5 rounded-md">
+         class="mx-auto relative sm:w-4/5  lg:w-1/3 border-gray-300 border mt-5 rounded-md">
             <h1 class="title relative
             text-xl 
             text-blue-400 text-center py-5 border-b border-gray-400">
@@ -76,9 +76,12 @@
                             }"
                         ></div>
                     </div>
-                    <span>
-                        {{item.file.name}}
-                    </span>
+                    <div class="top-box w-full border-b border-gray-400 flex items-center ">
+                        <span>
+                            {{item.file.name}}
+                        </span>
+                    </div>
+                    
                 </div>
             </div>
         </div>
@@ -253,6 +256,7 @@ export default {
             const fileName = this.fileUpdateTaskList[i].file.name;
             const hash = this.fileUpdateTaskList[i].hash;
             const { shouldUpload,existChunks } = await this.verifyUpload(fileName,hash,fileChunkList.length);
+
             // 服务端切片文件名称
             if(!shouldUpload){
                 console.log('秒传：上传成功');
@@ -430,5 +434,9 @@ export default {
 }
 .total{
     height:45px;
+}
+.top-box{
+    height: 100%;
+    max-height: 50px;
 }
 </style>
