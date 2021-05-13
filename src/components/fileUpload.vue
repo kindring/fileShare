@@ -45,11 +45,15 @@
             </form>
         </div>
         <div
-        v-show="fileUpdateTaskList.length"
+        v-show="fileUpdateTaskList.length||true"
          class="mx-auto relative sm:w-4/5  lg:w-1/3 border-gray-300 border mt-5 rounded-md">
             <h1 class="title relative
             text-xl 
-            text-blue-400 text-center py-5 border-b border-gray-400">
+            text-blue-400 
+            text-center 
+            py-5 
+            border-b 
+            border-gray-400">
                 文件列表
             </h1>
             <div class="lists ">
@@ -60,7 +64,9 @@
                 listItem
                 flex
                 items-center
-                
+                flex-col
+                mt-4
+                shadow-md
                 " >
                     <div class="absolute progressBar-position">
                         <div class=" bg-yellow-400 hash"
@@ -70,18 +76,59 @@
                         >
                         </div>
                         <div 
-                        class=" bg-red-400 total"
+                        class=" bg-blue-400 total"
                         :style="{
                             width:item.progress+'%'
                             }"
-                        ></div>
+                        >
+                        </div>
                     </div>
+                    <!-- 分块部分 -->
                     <div class="top-box w-full border-b border-gray-400 flex items-center ">
-                        <span>
+                        <div class="top-box-chunk selected border border-gray-400">
+                            <div class="w-full h-full" 
+                                :style="{
+                                    backgroundColor:selectedTaskArr.includes(i)?'orangered':''
+                                }"
+                                @click="switchTaskHandel(i)"
+                            ></div>
+                        </div>
+                        <div class="top-box-chunk file-name">
                             {{item.file.name}}
-                        </span>
+                        </div>
+                        <div class="top-box-chunk state">
+                            {{item.state|fileState}}
+                        </div>
+                        
+                        <div class="top-box-chunk pause">
+                            暂停按钮
+                        </div>
+                        <div class="top-box-chunk pause">
+                            取消按钮
+                        </div>
+                        <div class="top-box-chunk pause">
+                            下拉按钮
+                        </div>
                     </div>
-                    
+                    <div class="chunkList">
+                        <!-- 绘制同等数量的分块, -->
+                        <div class="chunkListBox">
+                            <div 
+                            v-for="(chunk,chunkIndex) in item.chunkList"
+                            :key="chunkIndex"
+                            class="relative chunk border border-black"
+                            >
+                                <div 
+                                class="progressBar-position w-full bg-green-200"
+                                :style="{
+                                        height: chunk.progress + '%'
+                                    }"
+                                >
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -96,10 +143,11 @@ export default {
         return {
             lock: false,
             /** 任务列表 
-             * Array.state 状态 0 等待 1 前端处理中 2上传中 3上传成功
+             * Array.state 状态 0 等待 1 前端处理中计算hash 2上传中 3上传成功
              * Array.isPaused 是否暂停 0 否 1是
             */
             fileUpdateTaskList: [],
+            selectedTaskArr:[],
             taskRunningNumber: 0,
             // 最大同时上传文件数量
             'max-file-upload-number': 2,
@@ -115,6 +163,26 @@ export default {
 
             },
             
+        }
+    },
+    filters:{
+        fileState: function(value){
+            if(!value) return '';
+            switch(value){
+                case 0:
+                    return '等待处理';
+                case 1:
+                    return '计算hash';
+                case 2:
+                    return '上传中';
+                case 3:
+                    return '上传成功';
+                case 4:
+                    return '秒传成功';
+                default:
+                    return '未知状态';
+                    break;
+            }
         }
     },
     methods:{
@@ -143,6 +211,16 @@ export default {
                     };
                 });
             },
+        /** 选中元素 */
+        switchTaskHandel(i){
+            if (!this.selectedTaskArr.includes(i))return this.selectedTaskArr.push(i);
+            console.log(this.selectedTaskArr)
+            console.log(typeof this.selectedTaskArr);
+
+            //从数组中移除对应元素
+            let index = this.selectedTaskArr.findIndex(n=>i==n);
+            this.selectedTaskArr.splice(index,1);
+        },
         // input文件修改绑定的事件
         handelFileChange(e){
             const files = e.target.files;
@@ -260,6 +338,8 @@ export default {
             // 服务端切片文件名称
             if(!shouldUpload){
                 console.log('秒传：上传成功');
+                this.fileUpdateTaskList[i].state = 4;
+                this.fileUpdateTaskList[i].progress = 100;
                 return;
             }
             // console.log(fileChunkList);
@@ -367,15 +447,14 @@ export default {
             const {data} = await this.request({
                 url:this.verifyUploadUrl,
                 headers: {
-               "content-type": "application/json"
-             },
-             data: JSON.stringify({
-               filename:fileName,
-               chunkTotal,
-               hash
-             })
-            });
-            console.log(data);
+                    "content-type": "application/json"
+                },
+                data: JSON.stringify({
+                        filename:fileName,
+                        chunkTotal,
+                        hash
+                    })
+                });
             return JSON.parse(data);
         },
         createProgressHandel(fileUpdateTaskListIndex,chunkIndex){
@@ -389,14 +468,14 @@ export default {
                // 本次上传长度.  =  总共上传了多少 总长度 20  9 18 19  9 - 0 18-9 19-9   9 9 1
                let nowUploadSize = prevProgress==nowProgress?e.loaded:e.loaded - prevLoaded;
                prevProgress = nowProgress;
-               console.log(`
-               -----------\n\n
-               当前对应的chunkIndex: ${chunkIndex}\n
-               当前块的上传进度: ${nowProgress}\n
-               本次上传了: ${nowUploadSize}\n 
-               上一次的数据长度: ${prevLoaded}\n 
-               总上传进度: ${ e.loaded }\n\n
-               -----------`)
+            //    console.log(`
+            //    -----------\n\n
+            //    当前对应的chunkIndex: ${chunkIndex}\n
+            //    当前块的上传进度: ${nowProgress}\n
+            //    本次上传了: ${nowUploadSize}\n 
+            //    上一次的数据长度: ${prevLoaded}\n 
+            //    总上传进度: ${ e.loaded }\n\n
+            //    -----------`)
                prevLoaded = e.loaded;
             
                // 本次上传的长度
@@ -412,12 +491,14 @@ export default {
 .lists{
     width: 100%;
     height: auto;
-    max-height: calc(50px * 5);
+    max-height: calc(50px * 6);
+    padding: 5px 0;
+    overflow: auto;
 }
 .listItem{
-    height: 50px;
+    height: auto;
     width: 100%;
-    padding: 0 5px;
+    /* padding: 0 5px; */
     box-sizing: border-box;
     position: relative;
 }
@@ -436,7 +517,56 @@ export default {
     height:45px;
 }
 .top-box{
-    height: 100%;
+    width: 100%;
+    height: 50px;
     max-height: 50px;
+    padding: 0 15PX;
+    flex-shrink:0;
+    /* background-color: #fff; */
+    position: relative;
+    cursor: default;
+    display: flex;
+    justify-content: space-between;
+    color: #2d2a2a;
+}
+.top-box-chunk{
+    position: relative;
+    margin: 0 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space:nowrap;
+}
+.selected{
+    width: 25px;
+    height: 25px;
+}
+.file-name{
+    width: 25%;
+    overflow: hidden;
+}
+.top-box:hover{
+    background-color: rgba(255, 255, 255, 0.3);
+}
+.chunkList{
+    width: 100%;
+    height: auto;
+    max-height: calc(50px * 3);
+    display: flex;
+    justify-content: center;
+    padding: 5px 0;
+}
+.chunkList .chunkListBox{
+    width: 98%;
+    height: auto;
+    padding: 5px 0;
+    box-shadow: 1px 1px 3px black;
+    display: grid;
+    grid-gap: 5px;
+    grid-template-columns: repeat(auto-fill,20px);
+    justify-content: center;
+    overflow: auto;
+}
+.chunkList .chunkListBox > div{
+    height: 20px;
 }
 </style>
