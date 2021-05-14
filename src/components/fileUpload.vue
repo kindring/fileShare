@@ -107,12 +107,28 @@
                             取消按钮
                         </div>
                         <div class="top-box-chunk pause">
+                            编辑按钮
+                        </div>
+                        <div class="top-box-chunk pause">
                             下拉按钮
                         </div>
                     </div>
-                    <div class="chunkList">
+                    <div class="chunkList flex-col justify-center items-center">
+                        <div 
+                        v-show="item.state>0"
+                        class="info w-full flex justify-between  ">
+                            <span>{{item.file.size|showByte}}</span>
+                            <span>已经上传: {{item.uploadSize|showByte}}/ 总长度 {{item.totalSize|showByte}}</span>
+                            <span>
+                                分享码:
+                                <input type="text" v-model="item.shareCode">
+                                <button type="button" @click="saveShareCode(item)">
+                                    确定
+                                </button>
+                            </span>
+                        </div>
                         <!-- 绘制同等数量的分块, -->
-                        <div class="chunkListBox">
+                        <div class="chunkListBox" v-show="item.isDrop&&item.chunkList.length">
                             <div 
                             v-for="(chunk,chunkIndex) in item.chunkList"
                             :key="chunkIndex"
@@ -158,6 +174,9 @@ export default {
             uploadChunkUrl: 'http://localhost:8001/api/uploadchunk',
             verifyUploadUrl: 'http://localhost:8001/api/verify',
             mergeRequestUrl: 'http://localhost:8001/api/merge',
+            setShareCodeUrl: 'http://localhost:8001/api/shareCode/set',
+            updateShareCodeUrl: 'http://localhost:8001/api/shareCode/update',
+
             // 线程列表
             workers: {
 
@@ -167,7 +186,7 @@ export default {
     },
     filters:{
         fileState: function(value){
-            if(!value) return '';
+            if(value === null) return value;
             switch(value){
                 case 0:
                     return '等待处理';
@@ -182,6 +201,23 @@ export default {
                 default:
                     return '未知状态';
                     break;
+            }
+        },
+        showByte(value){
+            value = parseInt(value);
+            const kb = 1024;
+            const mb = 1024 * 1024;
+            const gb = 1024 * 1024 * 1024;
+            const tb = 1024 * 1024 * 1024 * 1024;
+            if(value / gb >= 1){
+                return (value/gb).toFixed(2) + ' GB';
+            }else if(value / mb >= 1){
+
+                return (value/mb).toFixed(2) + ' MB'
+            }else if(value / kb >= 1){
+                return (value/kb).toFixed(2) + ' KB'
+            }else{
+                return value + ' Byte'
             }
         }
     },
@@ -228,9 +264,8 @@ export default {
             for(let i = 0; i< files.length;i++){
                 this.createTask(files[i]);
             }
-            this.$nextTick(()=>{
-                this.taskRunning();
-            })
+            this.$nextTick(this.taskRunning);
+
             // 拿到当前用户选择的文件列表
             // 添加文件到任务列表中
             // 开始执行任务
@@ -249,9 +284,13 @@ export default {
                 state: 0,
                 isPaused: 0,
                 progress:0,
+                hash: '',
                 hashPercentage: 0,
                 totalSize: 0,
                 uploadSize: 0,
+                isDrop: false,
+                shareCode: '',
+                nowShareCode: '',
                 chunkList:[]
             });
         },
@@ -340,12 +379,11 @@ export default {
                 console.log('秒传：上传成功');
                 this.fileUpdateTaskList[i].state = 4;
                 this.fileUpdateTaskList[i].progress = 100;
+                this.fileUpdateTaskList[i].uploadSize = this.fileUpdateTaskList[i].file.size;
+                this.taskRunningNumber --;
+                this.$nextTick(this.taskRunning);
                 return;
-            }
-            // console.log(fileChunkList);
-            // console.log('fileChunkList');
-            
-
+            }           
             await this.uploadChunks(fileChunkList,fileName,hash,existChunks,i);
         },
         /** 创建文件切片 */
@@ -426,7 +464,12 @@ export default {
             // 全部分块文件上传完成,合并文件
             let r = await Promise.all(requestList);
             await this.mergeRequest(hash,fileName);
+            // 
             console.log('上传完成');
+            this.fileUpdateTaskList[fileUpdateTaskListIndex].state = 3;
+            this.taskRunningNumber --;
+            this.$nextTick(this.taskRunning);
+
         },
         async mergeRequest(hash,fileName){
             await this.request(
@@ -482,6 +525,32 @@ export default {
                this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize += nowUploadSize;
                this.fileUpdateTaskList[fileUpdateTaskListIndex].progress = (Math.min(this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize,this.fileUpdateTaskList[fileUpdateTaskListIndex].uploadSize) / this.fileUpdateTaskList[fileUpdateTaskListIndex].totalSize)*100;
             }
+        },
+        async saveShareCode(item){
+            let url;
+            if(!item.shareCode){
+                return console.log('未输入hashCode')
+            }
+            if(item.nowShareCode && item.nowShareCode == item.shareCode){
+                return console.log('两次code 一致,无需修改数据');
+            }
+            if(!item.hash){
+                return console.log('文件hash值未计算出来,拒绝设置文件');
+            }
+            item.nowShareCode?url = this.setShareCodeUrl:url = this.updateShareCodeUrl;
+            console.log(url);
+            let data = {
+                hash:item.hash,
+                filename: item.file.name,
+                shareCode: item.shareCode
+            };
+            await this.request({
+                url,
+                headers:{
+                    'content-type':'application/json'
+                },
+                data,
+            });
         }
     }
 }
@@ -507,7 +576,7 @@ export default {
     left: 0;
     top: 0;
     width: 100%;
-    height: 100%;
+    /* height: 100%; */
 }
 .hash{
     height:5px;
@@ -518,8 +587,9 @@ export default {
 }
 .top-box{
     width: 100%;
-    height: 50px;
-    max-height: 50px;
+    height: 45px;
+    max-height: 45px;
+    margin-top: 5px;
     padding: 0 15PX;
     flex-shrink:0;
     /* background-color: #fff; */
@@ -539,6 +609,10 @@ export default {
 .selected{
     width: 25px;
     height: 25px;
+}
+.info{
+    padding: 0 5px;
+    font-size: 0.75em;
 }
 .file-name{
     width: 25%;

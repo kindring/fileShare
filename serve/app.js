@@ -3,6 +3,11 @@ const app = express();
 const router = require('./router/index')
 const bodyParser = require('body-parser');
 
+
+app.use((req, res, next) => {
+    console.log(req.ip);
+    next();
+})
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(router);
 
