@@ -4,9 +4,12 @@ const fs = require('fs');
 const fse = require('fs-extra')
 const path = require('path');
 const formidable = require('formidable');
+const share = require('./share');
+const { handel } = require('../../tools/index')
 
 const UPLOAD_DIR = path.join(__dirname, '../../upload/');
 const TEMP_DIR = path.join(__dirname, '../../tmp/');
+
 
 const extractExt = filename =>
     filename.slice(filename.lastIndexOf("."), filename.length); // 提取后缀名
@@ -30,24 +33,13 @@ router.post('/uploadchunk', async(req, res) => {
         const [name] = fields.filename;
         const [index] = fields.index;
         const chunkPath = path.join(UPLOAD_DIR, `/${hash}/${chunkHash}`);
-        try {
-            // console.log(chunkPath)
-            await fse.moveSync(chunk.path, chunkPath);
-            res.json({
-                code: 1,
-                message: 'ok',
-                name: chunkHash
-            });
-        } catch (error) {
-            console.error(error)
-            console.log('上传失败')
-            res.json({
-                code: 2,
-                message: error.message,
-                name: chunkHash
-            });
-            res.end();
-        }
+        let [data, error] = await handel(fse.moveSync(chunk.path, chunkPath));
+        console.log('上传文件');
+        res.json({
+            code: error ? 2 : 1,
+            message: error ? error.message : 'ok',
+            name: chunkHash
+        });
     });
 });
 
@@ -147,5 +139,7 @@ router.post('/merge', async(req, res) => {
     })
 })
 
+
+router.use('share', share);
 
 module.exports = router;

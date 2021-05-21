@@ -27,7 +27,10 @@ let updateScheam = joi.object({
     _id: joi.string()
 })
 
-/** 新增文件 */
+/** 
+ * 新增文件
+ * @param {*} data 数据内容
+ */
 function dbAddHandel(data, _id) {
     return new Promise((resolve, reject) => {
         try {
@@ -41,4 +44,46 @@ function dbAddHandel(data, _id) {
     });
 }
 
-function dbFindHandel(_id)
+// 三种情况
+// 知道id
+// 知道hash
+// 知道code
+
+// id hash
+// id code
+// hash code
+// id hash code
+// id code hash
+
+/**
+ * 查找文件 通过id进行查找 以及文件md5和文件分享码来进行查找
+ * @param {*} query 
+ */
+function dbFindHandel(query) {
+    return new Promise((resolve, reject) => {
+        try {
+            db.find(query, (err, docs) => {
+                err ? reject(err) : resolve(docs);
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+function dbRemoveHandel(_id) {
+    return new Promise((resolve, reject) => {
+        if (_id) {
+            return reject({ message: '数据不正常' })
+        }
+        db.remove({ _id }, (err, n) => {
+            err ? reject(err) : resolve(n);
+        });
+    });
+}
+
+module.exports = {
+    dbAddHandel,
+    dbFindHandel,
+    dbRemoveHandel
+}
