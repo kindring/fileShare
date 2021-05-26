@@ -174,9 +174,9 @@ export default {
             uploadChunkUrl: 'http://localhost:8001/api/uploadchunk',
             verifyUploadUrl: 'http://localhost:8001/api/verify',
             mergeRequestUrl: 'http://localhost:8001/api/merge',
-            setShareCodeUrl: 'http://localhost:8001/api/shareCode/set',
-            updateShareCodeUrl: 'http://localhost:8001/api/shareCode/update',
-
+            addShareCodeUrl: 'http://localhost:8001/api/share/add',
+            updateShareCodeUrl: 'http://localhost:8001/api/share/update',
+            findShareCodeUrl: 'http://localhost:8001/api/share/find',
             // 线程列表
             workers: {
 
@@ -537,20 +537,27 @@ export default {
             if(!item.hash){
                 return console.log('文件hash值未计算出来,拒绝设置文件');
             }
-            item.nowShareCode?url = this.setShareCodeUrl:url = this.updateShareCodeUrl;
+
+
+            // item.nowShareCode?url = this.setShareCodeUrl:url = this.updateShareCodeUrl; // 这神仙代码,写出来的是个奇才
+            
+            url = item.nowShareCode?this.updateShareCodeUrl:this.addShareCodeUrl;
+
             console.log(url);
             let data = {
                 hash:item.hash,
                 filename: item.file.name,
                 shareCode: item.shareCode
             };
-            await this.request({
+            console.log(data);
+            let response = await this.request({
                 url,
                 headers:{
                     'content-type':'application/json'
                 },
-                data,
+                data:JSON.stringify(data),
             });
+            console.log(response);
         }
     }
 }

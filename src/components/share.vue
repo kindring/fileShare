@@ -7,6 +7,7 @@
         <div class="w-full py-5">
             <file-upload></file-upload>
         </div>
+        
     </div> 
     
 </template>
@@ -29,5 +30,4 @@ export default {
 </script>
 
 <style>
-
 </style>

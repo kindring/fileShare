@@ -5,14 +5,13 @@ const fse = require('fs-extra')
 const path = require('path');
 const formidable = require('formidable');
 const share = require('./share');
-const { handel } = require('../../tools/index')
+const { handel,file } = require('../../tools/index')
 
 const UPLOAD_DIR = path.join(__dirname, '../../upload/');
 const TEMP_DIR = path.join(__dirname, '../../tmp/');
 
 
-const extractExt = filename =>
-    filename.slice(filename.lastIndexOf("."), filename.length); // 提取后缀名
+const extractExt = file.extractExt; // 提取后缀名
 
 
 /** 检测是否需要上传 */
@@ -33,7 +32,7 @@ router.post('/uploadchunk', async(req, res) => {
         const [name] = fields.filename;
         const [index] = fields.index;
         const chunkPath = path.join(UPLOAD_DIR, `/${hash}/${chunkHash}`);
-        let [data, error] = await handel(fse.moveSync(chunk.path, chunkPath));
+        let [data, error] = await handel(fse.move(chunk.path, chunkPath));
         console.log('上传文件');
         res.json({
             code: error ? 2 : 1,
@@ -140,6 +139,6 @@ router.post('/merge', async(req, res) => {
 })
 
 
-router.use('share', share);
+router.use('/share', share);
 
 module.exports = router;
