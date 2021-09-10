@@ -171,12 +171,12 @@ export default {
             'sign-file-chunk-upload' : 3,
             // 最大计算hash值队列
             'max-hash-calculate-number' : 3,
-            uploadChunkUrl: 'http://localhost:8001/api/uploadchunk',
-            verifyUploadUrl: 'http://localhost:8001/api/verify',
-            mergeRequestUrl: 'http://localhost:8001/api/merge',
-            addShareCodeUrl: 'http://localhost:8001/api/share/add',
-            updateShareCodeUrl: 'http://localhost:8001/api/share/update',
-            findShareCodeUrl: 'http://localhost:8001/api/share/find',
+            uploadChunkUrl: 'http://kindring.cn:8888/api/uploadchunk',
+            verifyUploadUrl: 'http://kindring.cn:8888/api/verify',
+            mergeRequestUrl: 'http://kindring.cn:8888/api/merge',
+            addShareCodeUrl: 'http://kindring.cn:8888/api/share/add',
+            updateShareCodeUrl: 'http://kindring.cn:8888/api/share/update',
+            findShareCodeUrl: 'http://kindring.cn:8888/api/share/find',
             // 线程列表
             workers: {
 

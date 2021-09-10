@@ -56,7 +56,7 @@ router.post('/find', async(req, res) => {
     let [newDb, err] = await handel(db.dbFindHandel(body));
     let resultData = {
         code: err ? err.code || 2 : 1,
-        message: err?.message || 'ok',
+        message: err?err.message :'ok',
         data: newDb
     }
     res.json(resultData);

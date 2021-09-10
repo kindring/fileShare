@@ -5,7 +5,7 @@
     "private": "true",
     "main": "main.js",
     "scripts": {
-        "dev": "webpack serve --config build/webpack.config.js --open",
+        "dev": "webpack serve --config build/webpack.config.js --open ",
         "build": "webpack --config build/webpack.config.js",
         "test": "echo \"Error: no test specified\" && exit 1"
     },

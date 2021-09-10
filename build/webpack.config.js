@@ -89,6 +89,8 @@ module.exports = {
         // gzip压缩
         compress: true,
         host: "0.0.0.0",
+         disableHostCheck: true,
+
         // 端口
     },
     resolve: {
